@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentLength = promptInput.value.length;
         charCount.textContent = `${currentLength}/${LIMITS.input}`;
         
-        // Enable button only if input has content and is within limits
+        // Enable button for any input with at least 1 character that doesn't exceed limits
         if (currentLength > 0 && currentLength <= LIMITS.input) {
             generateBtn.disabled = false;
             charCount.classList.remove('warning');
@@ -115,12 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // Make API request
-            const response = await fetch('/api/generate', {
+            const response = await fetch('/.netlify/functions/generateAd', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ input: prompt }),
             });
             
             const data = await response.json();
@@ -135,54 +135,78 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error:', error);
             hideSection('loadingSection');
             
-            // Show validation error as fallback
-            validationError.style.display = 'flex';
-            showSection('resultSection');
+            // Try to generate fallback content for short inputs
+            if (prompt.length < 5) {
+                const fallbackData = generateFallbackContent(prompt);
+                displayResult(fallbackData);
+            } else {
+                // Show validation error as fallback for longer inputs
+                validationError.style.display = 'flex';
+                showSection('resultSection');
+            }
         }
     });
     
+    // Generate fallback content for very short inputs
+    function generateFallbackContent(prompt) {
+        const cleanPrompt = prompt.trim();
+        return {
+            headline: `${cleanPrompt.charAt(0).toUpperCase() + cleanPrompt.slice(1)}`,
+            description: `Discover everything about ${cleanPrompt}. Learn more and explore the possibilities today.`
+        };
+    }
+    
     // Function to display the API result
     function displayResult(data) {
-        if (data.error) {
-            validationError.style.display = 'flex';
-            showSection('resultSection');
-            return;
+        // If API returns an error but we have a short input, generate fallback content
+        if (data.error && promptInput.value.trim().length < 5) {
+            data = generateFallbackContent(promptInput.value.trim());
         }
         
-        // Check for missing or invalid data
+        // Handle missing data by generating fallback content
         if (!data.headline || !data.description || 
             typeof data.headline !== 'string' || 
             typeof data.description !== 'string') {
             
-            validationError.style.display = 'flex';
-            showSection('resultSection');
-            return;
+            // Generate fallback content for short inputs
+            if (promptInput.value.trim().length > 0) {
+                data = generateFallbackContent(promptInput.value.trim());
+            } else {
+                validationError.style.display = 'flex';
+                showSection('resultSection');
+                return;
+            }
         }
         
-        // Check character limits - show fallback if exceeded
-        if (data.headline.length > LIMITS.headline || data.description.length > LIMITS.description) {
-            validationError.style.display = 'flex';
-            showSection('resultSection');
-            return;
+        // Ensure content fits within limits
+        let headline = data.headline.trim();
+        let description = data.description.trim();
+        
+        if (headline.length > LIMITS.headline) {
+            headline = headline.substring(0, LIMITS.headline);
+        }
+        
+        if (description.length > LIMITS.description) {
+            description = description.substring(0, LIMITS.description);
         }
         
         // Display content and update counters
-        headlineElement.textContent = data.headline;
-        descriptionElement.textContent = data.description;
+        headlineElement.textContent = headline;
+        descriptionElement.textContent = description;
         
-        headlineCounter.textContent = `${data.headline.length}/${LIMITS.headline}`;
-        descriptionCounter.textContent = `${data.description.length}/${LIMITS.description}`;
+        headlineCounter.textContent = `${headline.length}/${LIMITS.headline}`;
+        descriptionCounter.textContent = `${description.length}/${LIMITS.description}`;
         
         // Apply counter classes based on character count
-        updateCounterClass(headlineCounter, data.headline.length, LIMITS.headline);
-        updateCounterClass(descriptionCounter, data.description.length, LIMITS.description);
+        updateCounterClass(headlineCounter, headline.length, LIMITS.headline);
+        updateCounterClass(descriptionCounter, description.length, LIMITS.description);
         
         // Hide validation error, show result section
         validationError.style.display = 'none';
         showSection('resultSection');
         
         // Draw the banner preview
-        drawBanner(data.headline, data.description);
+        drawBanner(headline, description);
     }
     
     function updateCounterClass(counterElement, currentLength, maxLength) {
