@@ -3,27 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ad Generator</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Blinkly — Instant Ad Copy with AI</title>
+    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#0070f3">
 </head>
 <body>
-    <div class="container">
-        <h1>Ad Generator</h1>
-        <div class="input-section">
-            <textarea 
-                id="promptInput" 
-                placeholder="Enter your product or service description..."
-                rows="4"
-            ></textarea>
-            <button id="generateBtn">Generate Ad</button>
-        </div>
-        <div class="result-section" id="resultSection">
-            <div class="result-content">
-                <h2 id="headline"></h2>
-                <p id="description"></p>
+    <div class="main-container">
+        <header class="compact-header">
+            <div class="logo-container">
+                <div class="logo">Blinkly</div>
+            </div>
+            <div class="header-content">
+                <h1>Instant Ad Copy with AI</h1>
+                <p class="subtitle">Create compelling ad copy in seconds</p>
+            </div>
+        </header>
+        
+        <div class="app-layout">
+            <!-- Input Section -->
+            <div class="input-section">
+                <div class="input-wrapper card-container">
+                    <textarea 
+                        id="promptInput" 
+                        placeholder="Describe your product or service..."
+                        class="input-field"
+                    ></textarea>
+                    <div class="input-footer">
+                        <span class="char-count">0/500</span>
+                        <button id="generateBtn" class="primary-button" disabled>
+                            <span class="button-text">Generate</span>
+                            <i class="fas fa-magic button-icon"></i>
+                            <span class="button-hover-effect"></span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="loading-section" id="loadingSection">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <p>Creating your ad copy...</p>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="result-section" id="resultSection">
+                <div class="result-content card-container">
+                    <h2 class="result-title">Your Ad Creative</h2>
+                    
+                    <!-- Error message for character limit validation -->
+                    <div id="validationError" class="validation-error">
+                        <p>Your input may be too vague. Add more details or try again.</p>
+                        <button id="tryAgainBtn" class="secondary-button">
+                            <i class="fas fa-redo"></i>
+                            <span>Try Again</span>
+                        </button>
+                    </div>
+                    
+                    <div id="resultContent" class="result-body">
+                        <div class="result-item">
+                            <div class="result-item-header">
+                                <h3>Headline</h3>
+                                <div class="result-actions">
+                                    <span class="char-indicator headline-counter">0/30</span>
+                                    <button class="copy-button" onclick="copyText(event, 'headline')" data-target="headline">
+                                        <i class="fas fa-copy"></i>
+                                        <span>Copy</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="headline" class="result-text"></div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-header">
+                                <h3>Description</h3>
+                                <div class="result-actions">
+                                    <span class="char-indicator description-counter">0/90</span>
+                                    <button class="copy-button" onclick="copyText(event, 'description')" data-target="description">
+                                        <i class="fas fa-copy"></i>
+                                        <span>Copy</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="description" class="result-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banner Preview Section -->
+            <div class="banner-toggle">
+                <button id="previewBannerBtn" class="preview-banner-btn">
+                    <i class="fas fa-image"></i> Show Banner Preview
+                </button>
+            </div>
+
+            <div class="banner-section" id="bannerSection">
+                <div class="banner-content card-container">
+                    <div class="banner-header">
+                        <h2 class="banner-title">Preview Banner</h2>
+                        <div class="banner-actions">
+                            <div class="theme-toggle">
+                                <span class="theme-label">Theme:</span>
+                                <button id="darkThemeBtn" class="theme-button active">Dark</button>
+                                <button id="lightThemeBtn" class="theme-button">Light</button>
+                            </div>
+                            <button class="download-button" id="downloadBannerBtn">
+                                <i class="fas fa-download"></i>
+                                <span>Download</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="banner-preview">
+                        <canvas id="adBannerCanvas" width="600" height="315"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Support Section -->
+            <div class="support-toggle">
+                <button id="supportToggleBtn" class="support-toggle-btn">
+                    <i class="fas fa-heart"></i> Support this project
+                </button>
+                <div class="donation-section" id="donationSection">
+                    <div class="donation-content">
+                        <h3>Support This Project</h3>
+                        <p>If you find Blinkly useful:</p>
+                        <div class="donation-address">
+                            <span>0x5a8440AFcfF014aA69AbA8Ab6426B6Ce627DDBBF</span>
+                            <span class="donation-icon">🦊</span>
+                        </div>
+                        <p class="donation-note">(USDT on BSC via MetaMask)</p>
+                    </div>
+                </div>
             </div>
         </div>
+        
+        <footer>
+            <div class="footer-content">
+                <div class="footer-logo">Blinkly</div>
+                <div class="footer-links">
+                    <a href="https://metamask.app.link/send/0x55d398326f99059fF775485246999027B3197955@56/transfer?address=0x5a8440AFcfF014aA69AbA8Ab6426B6Ce627DDBBF&uint256=5e18" target="_blank" class="footer-link">
+                        <span>Donate</span>
+                    </a>
+                </div>
+            </div>
+        </footer>
     </div>
-    <script src="script.js"></script>
+    
+    <script src="script.js?v=5"></script>
 </body>
 </html> 
