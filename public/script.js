@@ -30,7 +30,7 @@ function hideSection(sectionId) {
     }
 }
 
-// Copy text to clipboard
+// Copy text to clipboard with fallback
 function copyText(event, targetId) {
     const btn = event.currentTarget;
     const element = document.getElementById(targetId);
@@ -38,18 +38,59 @@ function copyText(event, targetId) {
     if (!element) return;
     
     const textToCopy = element.textContent;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        btn.classList.add('copied');
-        const originalText = btn.querySelector('span').textContent;
-        btn.querySelector('span').textContent = 'Copied!';
-        
-        setTimeout(() => {
-            btn.classList.remove('copied');
-            btn.querySelector('span').textContent = originalText;
-        }, 2000);
-    }).catch(err => {
-        console.error('Could not copy text: ', err);
-    });
+    
+    // Check if Clipboard API is available
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showCopySuccess(btn);
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+            fallbackCopyText(textToCopy, btn);
+        });
+    } else {
+        // Fallback for browsers without clipboard support or non-HTTPS
+        fallbackCopyText(textToCopy, btn);
+    }
+}
+
+// Fallback copy method using textarea
+function fallbackCopyText(text, btn) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    
+    // Make the textarea out of viewport
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+    
+    let success = false;
+    try {
+        success = document.execCommand('copy');
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+    }
+    
+    document.body.removeChild(textArea);
+    
+    if (success) {
+        showCopySuccess(btn);
+    }
+}
+
+// Show copy success feedback
+function showCopySuccess(btn) {
+    btn.classList.add('copied');
+    const originalText = btn.querySelector('span').textContent;
+    btn.querySelector('span').textContent = 'Copied!';
+    
+    setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.querySelector('span').textContent = originalText;
+    }, 2000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -71,6 +112,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const lightThemeBtn = document.getElementById('lightThemeBtn');
     const supportToggleBtn = document.getElementById('supportToggleBtn');
     const donationSection = document.getElementById('donationSection');
+    
+    // Initialize visibility states based on DOM
+    if (loadingSection) loadingSection.style.display = 'none';
+    if (resultSection) resultSection.style.display = 'none';
+    if (bannerSection) bannerSection.style.display = 'none';
+    if (donationSection) donationSection.style.display = 'none';
+    if (validationError) validationError.style.display = 'none';
+    
+    // Preload Inter font for canvas
+    const fontLoader = new FontFace('Inter', 'url(https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2)');
+    let fontLoaded = false;
+    
+    fontLoader.load().then(font => {
+        document.fonts.add(font);
+        fontLoaded = true;
+        console.log('Inter font loaded successfully');
+    }).catch(err => {
+        console.warn('Failed to load Inter font:', err);
+    });
     
     // Initially check character count
     updateCharCount();
@@ -108,10 +168,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Hide results and validation error if shown
         hideSection('resultSection');
-        validationError.style.display = 'none';
+        if (validationError) validationError.style.display = 'none';
         
-        // Show loading
+        // Show loading and disable generate button to prevent multiple submissions
         showSection('loadingSection');
+        generateBtn.disabled = true;
         
         try {
             // Make API request
@@ -122,6 +183,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({ input: prompt }),
             });
+            
+            // Check for HTTP errors
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API error: ${response.status} - ${errorText}`);
+            }
             
             const data = await response.json();
             
@@ -141,9 +208,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayResult(fallbackData);
             } else {
                 // Show validation error as fallback for longer inputs
-                validationError.style.display = 'flex';
-                showSection('resultSection');
+                if (validationError) {
+                    validationError.style.display = 'flex';
+                    showSection('resultSection');
+                }
             }
+        } finally {
+            // Re-enable the generate button
+            updateCharCount();
         }
     });
     
@@ -172,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (promptInput.value.trim().length > 0) {
                 data = generateFallbackContent(promptInput.value.trim());
             } else {
-                validationError.style.display = 'flex';
+                if (validationError) validationError.style.display = 'flex';
                 showSection('resultSection');
                 return;
             }
@@ -202,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCounterClass(descriptionCounter, description.length, LIMITS.description);
         
         // Hide validation error, show result section
-        validationError.style.display = 'none';
+        if (validationError) validationError.style.display = 'none';
         showSection('resultSection');
         
         // Draw the banner preview
@@ -224,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Try again button
     tryAgainBtn.addEventListener('click', () => {
         hideSection('resultSection');
-        validationError.style.display = 'none';
+        if (validationError) validationError.style.display = 'none';
         promptInput.focus();
     });
     
@@ -232,10 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
     previewBannerBtn.addEventListener('click', () => {
         if (bannerSection.style.display === 'block') {
             hideSection('bannerSection');
-            previewBannerBtn.innerHTML = '<i class="fas fa-image"></i> Show Banner Preview';
+            const icon = '<i class="fas fa-image"></i>';
+            previewBannerBtn.innerHTML = `${icon} Show Banner Preview`;
         } else {
             showSection('bannerSection');
-            previewBannerBtn.innerHTML = '<i class="fas fa-times"></i> Hide Banner Preview';
+            const icon = '<i class="fas fa-times"></i>';
+            previewBannerBtn.innerHTML = `${icon} Hide Banner Preview`;
         }
     });
     
@@ -243,10 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
     supportToggleBtn.addEventListener('click', () => {
         if (donationSection.style.display === 'block') {
             hideSection('donationSection');
-            supportToggleBtn.innerHTML = '<i class="fas fa-heart"></i> Support this project';
+            const icon = '<i class="fas fa-heart"></i>';
+            supportToggleBtn.innerHTML = `${icon} Support this project`;
         } else {
             showSection('donationSection');
-            supportToggleBtn.innerHTML = '<i class="fas fa-times"></i> Hide support';
+            const icon = '<i class="fas fa-times"></i>';
+            supportToggleBtn.innerHTML = `${icon} Hide support`;
         }
     });
     
@@ -270,6 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Draw the banner
     function drawBanner(headline, description) {
         const canvas = document.getElementById('adBannerCanvas');
+        if (!canvas) return;
+        
         const ctx = canvas.getContext('2d');
         
         // Clear canvas
@@ -288,28 +366,33 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = accentColor;
         ctx.fillRect(0, 0, canvas.width, 4);
         
+        // Set font family based on loading status
+        const fontFamily = fontLoaded ? 'Inter, sans-serif' : 'Arial, sans-serif';
+        
         // Set text styles for headline
         ctx.fillStyle = textColor;
-        ctx.font = 'bold 24px Inter, sans-serif';
+        ctx.font = `bold 24px ${fontFamily}`;
         ctx.textBaseline = 'top';
         
         // Draw headline with word wrap
         const headlineY = wrapText(ctx, headline || 'Your Headline Here', 30, 40, canvas.width - 60, 30);
         
         // Set text styles for description
-        ctx.font = '16px Inter, sans-serif';
+        ctx.font = `16px ${fontFamily}`;
         
         // Draw description with word wrap
         wrapText(ctx, description || 'Your description text here. This is where you would describe your product or service in more detail.', 30, headlineY + 30, canvas.width - 60, 24);
         
         // Draw logo or brand marker
         ctx.fillStyle = accentColor;
-        ctx.font = 'bold 14px Inter, sans-serif';
+        ctx.font = `bold 14px ${fontFamily}`;
         ctx.fillText('Blinkly Ad', canvas.width - 100, canvas.height - 30);
     }
     
     // Helper function to wrap text
     function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+        if (!text) return y;
+        
         const words = text.split(' ');
         let line = '';
         let testLine = '';
@@ -341,10 +424,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Download banner functionality
     downloadBannerBtn.addEventListener('click', () => {
         const canvas = document.getElementById('adBannerCanvas');
-        const link = document.createElement('a');
+        if (!canvas) return;
         
-        link.download = 'blinkly-ad-banner.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        let link;
+        try {
+            link = document.createElement('a');
+            link.download = 'blinkly-ad-banner.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (e) {
+            console.error('Error downloading banner:', e);
+            alert('Unable to download banner. Your browser may not support this feature.');
+        }
     });
 }); 

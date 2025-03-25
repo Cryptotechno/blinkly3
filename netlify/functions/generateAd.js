@@ -3,6 +3,12 @@ const fetch = require('node-fetch');
 // Helper function for delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper function to sanitize input string
+function sanitizeInput(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[^\w\s.,!?-]/gi, '').trim();
+}
+
 exports.handler = async function(event, context) {
   // Check for required environment variable
   if (!process.env.GROQ_API_KEY) {
@@ -31,6 +37,9 @@ exports.handler = async function(event, context) {
         };
       }
       
+      // Sanitize input to prevent injection
+      input = sanitizeInput(input);
+      
       // For very short inputs (1-2 words), enhance the prompt to encourage creativity
       const wordCount = input.split(/\s+/).filter(word => word.length > 0).length;
       if (wordCount <= 2) {
@@ -38,6 +47,7 @@ exports.handler = async function(event, context) {
         input = `Be creative with this minimal input: ${input}`;
       }
     } catch (parseError) {
+      console.error('Error parsing request:', parseError);
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Invalid request format' })
@@ -96,12 +106,19 @@ The ad copy should be persuasive and optimized for clicks.`;
           })
         });
 
+        // Add timeout to prevent hanging requests
+        const responseTimeout = setTimeout(() => {
+          throw new Error('Response timeout after 10 seconds');
+        }, 10000);
+
         if (!response.ok) {
+          clearTimeout(responseTimeout);
           const errorText = await response.text();
           throw new Error(`Groq API error: ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
+        clearTimeout(responseTimeout);
         
         if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
           throw new Error('Invalid response structure from Groq API');
@@ -140,7 +157,7 @@ The ad copy should be persuasive and optimized for clicks.`;
           // Create a simple fallback based on the input
           const inputWords = input.split(/\s+/).filter(word => word.length > 0);
           const cleanInput = inputWords.length > 0 ? 
-                            inputWords[0].replace(/[^\w\s]/gi, '') : 'product';
+                            sanitizeInput(inputWords[0]) : 'product';
           
           headline = `Discover ${cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1)}`;
           
@@ -168,7 +185,11 @@ The ad copy should be persuasive and optimized for clicks.`;
         retryCount++;
         
         // Only retry on network or server errors, not on client errors
-        if (error.message.includes('429') || error.message.includes('500') || error.message.includes('503') || error.message.includes('timeout')) {
+        if (error.message.includes('429') || 
+            error.message.includes('500') || 
+            error.message.includes('503') || 
+            error.message.includes('timeout') ||
+            error.message.includes('ECONNRESET')) {
           // Exponential backoff: 1s, 2s, 4s
           const delay = Math.pow(2, retryCount - 1) * 1000;
           console.log(`Retry attempt ${retryCount}/${maxRetries} after ${delay}ms delay. Error: ${error.message}`);
@@ -185,7 +206,7 @@ The ad copy should be persuasive and optimized for clicks.`;
     
     // Provide a fallback response even if all API attempts fail
     const fallbackInput = input.split(/\s+/)[0] || 'product';
-    const cleanInput = fallbackInput.replace(/[^\w\s]/gi, '');
+    const cleanInput = sanitizeInput(fallbackInput);
     
     return {
       statusCode: 200,
@@ -209,11 +230,14 @@ The ad copy should be persuasive and optimized for clicks.`;
       // If we can't parse the input, use the default
     }
     
+    // Sanitize input for security
+    const cleanInput = sanitizeInput(fallbackInput);
+    
     return {
       statusCode: 200,
       body: JSON.stringify({ 
-        headline: `${fallbackInput.charAt(0).toUpperCase() + fallbackInput.slice(1).substring(0, 29)}`,
-        description: `Learn more about our ${fallbackInput} today.`.substring(0, 90)
+        headline: `${cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1).substring(0, 29)}`,
+        description: `Learn more about our ${cleanInput} today.`.substring(0, 90)
       })
     };
   }
