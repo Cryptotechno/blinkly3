@@ -2,10 +2,8 @@
   publish = "public"
   functions = "netlify/functions"
 
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+# Netlify already handles function proxying automatically
+# No need for custom redirects for functions
 
 [build.environment]
   NODE_VERSION = "16" 
