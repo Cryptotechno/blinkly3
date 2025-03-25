@@ -156,6 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check character count as user types
     promptInput.addEventListener('input', debounce(updateCharCount, 100));
     
+    // Debug function to help with troubleshooting
+    function logDebug(message, data) {
+        console.log(`[DEBUG] ${message}`, data);
+    }
+    
     // Generate button click handler
     generateBtn.addEventListener('click', async () => {
         const prompt = promptInput.value.trim();
@@ -175,11 +180,17 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.disabled = true;
         
         try {
-            // Make API request
-            const response = await fetch('/.netlify/functions/generateAd', {
+            logDebug('Starting API request with input:', prompt);
+            
+            // Make API request - use the correct Netlify function path
+            const functionUrl = '/.netlify/functions/generateAd';
+            logDebug('Calling API at:', functionUrl);
+            
+            const response = await fetch(functionUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache',
                 },
                 body: JSON.stringify({ input: prompt }),
             });
@@ -187,10 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check for HTTP errors
             if (!response.ok) {
                 const errorText = await response.text();
+                logDebug('API error response:', errorText);
                 throw new Error(`API error: ${response.status} - ${errorText}`);
             }
             
             const data = await response.json();
+            logDebug('API response data:', data);
             
             // Hide loading
             hideSection('loadingSection');
@@ -200,10 +213,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Error:', error);
+            logDebug('Caught error:', error.message);
             hideSection('loadingSection');
             
             // Try to generate fallback content for short inputs
             if (prompt.length < 5) {
+                logDebug('Using client-side fallback for short input');
                 const fallbackData = generateFallbackContent(prompt);
                 displayResult(fallbackData);
             } else {
@@ -230,8 +245,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Function to display the API result
     function displayResult(data) {
+        logDebug('Displaying result:', data);
+        
         // If API returns an error but we have a short input, generate fallback content
         if (data.error && promptInput.value.trim().length < 5) {
+            logDebug('Error in API response, using fallback');
             data = generateFallbackContent(promptInput.value.trim());
         }
         
@@ -240,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
             typeof data.headline !== 'string' || 
             typeof data.description !== 'string') {
             
+            logDebug('Missing or invalid data in response');
             // Generate fallback content for short inputs
             if (promptInput.value.trim().length > 0) {
                 data = generateFallbackContent(promptInput.value.trim());
@@ -261,6 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (description.length > LIMITS.description) {
             description = description.substring(0, LIMITS.description);
         }
+        
+        logDebug('Final content:', { headline, description });
         
         // Display content and update counters
         headlineElement.textContent = headline;
